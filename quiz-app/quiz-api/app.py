@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from jwt_utils import build_token, decode_token, JwtError
 from questions import add_question
 from question_model import Question
+from question_serializer import json_to_question, question_to_json
 
 # Charger les variables du fichier .env
 load_dotenv()
@@ -45,7 +46,7 @@ def PostQuestion():
         return {"error": "Invalid question"}, 400
 
     try:
-        question = Question(title=title, text=text, image=image, position=position)
+        question = json_to_question(payload)
         question_id = add_question(question)
     except ValueError:
         return {"error": "Invalid position"}, 400
