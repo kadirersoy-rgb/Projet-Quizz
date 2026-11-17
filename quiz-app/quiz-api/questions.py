@@ -1,15 +1,14 @@
-import sqlite3
-from pathlib import Path
 from question_model import Question
-
-DB_PATH = Path(__file__).resolve().parent / "quiz.db"
+from question_repository import get_connection, insert_question
 
 
 def add_question(question: Question):
-    connection = sqlite3.connect(DB_PATH)
+    connection = get_connection()
 
     try:
         cursor = connection.cursor()
+
+        cursor.execute("BEGIN")
 
         cursor.execute("SELECT COUNT(*) FROM questions")
         count = cursor.fetchone()[0]
@@ -25,34 +24,46 @@ def add_question(question: Question):
         if position < 1 or position > count + 1:
             raise ValueError("Invalid position")
 
-        cursor.execute(
-            "SELECT id FROM questions WHERE position >= ? ORDER BY position DESC",
-            (position,)
-        )
-        ids_to_shift = [row[0] for row in cursor.fetchall()]
-
-        for question_id in ids_to_shift:
-            cursor.execute(
-                "UPDATE questions SET position = -position WHERE id = ?",
-                (question_id,)
-            )
-
-        for question_id in ids_to_shift:
-            cursor.execute(
-                "UPDATE questions SET position = -position + 1 WHERE id = ?",
-                (question_id,)
-            )
-
+        # Récupérer les questions à décaler
         cursor.execute(
             """
-            INSERT INTO questions (position, title, text, image)
-            VALUES (?, ?, ?, ?)
+            SELECT id
+            FROM questions
+            WHERE position >= ?
+            ORDER BY position DESC
             """,
-            (position, question.title, question.text, question.image)
+            (position,)
         )
 
-        question.id = cursor.lastrowid
+        ids_to_shift = [row["id"] for row in cursor.fetchall()]
+
+        # Positions temporaires négatives pour éviter
+        # les conflits avec la contrainte UNIQUE
+        for question_id in ids_to_shift:
+            cursor.execute(
+                """
+                UPDATE questions
+                SET position = -position
+                WHERE id = ?
+                """,
+                (question_id,)
+            )
+
+        # Repositionner les questions décalées
+        for question_id in ids_to_shift:
+            cursor.execute(
+                """
+                UPDATE questions
+                SET position = -position + 1
+                WHERE id = ?
+                """,
+                (question_id,)
+            )
+
         question.position = position
+
+        # Insertion via notre interface Modèle-BDD
+        insert_question(cursor, question)
 
         connection.commit()
 
