@@ -7,6 +7,7 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from jwt_utils import build_token, decode_token, JwtError
 from questions import add_question
+from question_model import Question
 
 # Charger les variables du fichier .env
 load_dotenv()
@@ -44,7 +45,8 @@ def PostQuestion():
         return {"error": "Invalid question"}, 400
 
     try:
-        question_id = add_question(title, text, image, position)
+        question = Question(title=title, text=text, image=image, position=position)
+        question_id = add_question(question)
     except ValueError:
         return {"error": "Invalid position"}, 400
 
