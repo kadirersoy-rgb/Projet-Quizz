@@ -1,4 +1,3 @@
-
 import os
 import hashlib
 import hmac
@@ -6,13 +5,50 @@ import hmac
 from flask import Flask, request
 from flask_cors import CORS
 from dotenv import load_dotenv
-from jwt_utils import build_token
+from jwt_utils import build_token, decode_token, JwtError
+from questions import add_question
 
 # Charger les variables du fichier .env
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
+
+@app.route('/questions', methods=['POST'])
+def PostQuestion():
+    # Récupérer le token depuis Authorization
+    authorization = request.headers.get('Authorization')
+
+    if not authorization or not authorization.startswith('Bearer '):
+        return "Unauthorized", 401
+
+    token = authorization.split(' ', 1)[1]
+
+    try:
+        decode_token(token)
+    except JwtError:
+        return "Unauthorized", 401
+
+    # Récupérer les informations de la question
+    payload = request.get_json(silent=True)
+
+    if not isinstance(payload, dict):
+        return {"error": "Invalid JSON"}, 400
+
+    title = payload.get('title')
+    text = payload.get('text')
+    image = payload.get('image')
+    position = payload.get('position')
+
+    if not isinstance(title, str) or not isinstance(text, str):
+        return {"error": "Invalid question"}, 400
+
+    try:
+        question_id = add_question(title, text, image, position)
+    except ValueError:
+        return {"error": "Invalid position"}, 400
+
+    return {"id": question_id}, 200
 
 
 @app.route('/quiz-info', methods=['GET'])
